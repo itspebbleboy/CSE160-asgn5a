@@ -29,7 +29,7 @@ function main() {
 	const fov = 45;
 	const aspect = 2; // the canvas default
 	const near = 0.1;
-	const far = 100;
+	const far = 500;
 	const camera = new THREE.PerspectiveCamera( fov, aspect, near, far );
 	camera.position.set( 0, 10, 20 );
     // #endregion
@@ -70,18 +70,21 @@ function main() {
 		const color = 0xF7C452;
 		const intensity = 4;
 		const light = new THREE.DirectionalLight( color, intensity );
-		light.position.set( 0, 10, 10 );
-		light.target.position.set( 0, 0, 0 );
+		light.position.set( 0, 40, 40 );
+		light.target.position.set( 0, 0, -10 );
         light.castShadow = true;
 		scene.add( light );
 		scene.add( light.target );
         //Set up shadow properties for the light
-        light.shadow.mapSize.width = 512; // default
-        light.shadow.mapSize.height = 512; // default
-        light.shadow.camera.near = 0.5; // default
-        light.shadow.camera.far = 500; // default
+        light.shadow.mapSize.width = 10000; // default
+        light.shadow.mapSize.height = 10000; // default
+        light.shadow.camera.top = 50; light.shadow.camera.bottom = -50; 
+        light.shadow.camera.left = 50; light.shadow.camera.right = -50; 
+        light.shadow.camera.near = 10; // default
+        light.shadow.camera.far = 100; // default
+        light.shadow.radius = 1.1;
 	}
-    
+
     {// ADDING LIGHT: AMBIENTLIGHT 
         const color = 0xF28B76;
         const intensity = 1
@@ -103,12 +106,8 @@ function main() {
 		texture.repeat.set( repeats, repeats );
 
 		const planeGeo = new THREE.PlaneGeometry( planeSize, planeSize );
-        /*
-		const planeMat = new THREE.MeshPhongMaterial( {
-			map: texture,
-			side: THREE.DoubleSide,
-		} );*/
-        const planeMat = new THREE.MeshStandardMaterial( {
+        
+        const planeMat = new THREE.MeshPhongMaterial( {
 			map: texture,
 			side: THREE.DoubleSide,
 		} );
@@ -118,12 +117,16 @@ function main() {
 		scene.add( mesh );
 
 	}
+
     let hills = [];
     let hillCoords = [
         [20, -5, 20], [20,-5,15], [20,-5,10], [20,-5,5], [20, -5, 0],
     ];
     let furtherHillCoords = [
-        [30, 0, 30], [30, 0, 20], [30, 0, 10], [30, 0, 0]
+        [30, 0, 30], [40, 0, 17] , [30, 0, 10], [30, 0, 0]
+    ];
+    let coneCoords = [
+        [40, 0, 30],[30, 0, 20] , [40, 0, 0]
     ];
     {
         const loader = new THREE.TextureLoader();
@@ -162,6 +165,9 @@ function main() {
         furtherHillCoords.forEach(coord => {
             hills.push(addHillInstance(coord, 7, 12));
         });
+        coneCoords.forEach(coord => {
+            hills.push(addConeInstance(coord, 20, 30));
+        });
 
         
         function addHillInstance(pos, radiusMax, radiusMin){
@@ -177,6 +183,39 @@ function main() {
             
             sPos.forEach( function (matrix, i) {
                 const geometry = new THREE.SphereGeometry( Math.random()*(radiusMax - radiusMin) + radiusMin, 6, 3,);
+                const rand = Math.random()*3;
+                /*let mat;
+                if (rand < 3) mat = mats[0];
+                else if(rand < 2) mat = mats[1];
+                else mat = mats[2];
+                console.log(mat);*/
+                const sphere = new THREE.Mesh( geometry, mats[Math.floor(Math.random() * 3)] )
+                //const sphere = new THREE.Mesh( geometry, mat )
+                sphere.rotation.y = Math.random()*3
+                sphere.rotation.z = Math.random()/5;
+
+                sphere.position.set(matrix._data[0], matrix._data[1],matrix._data[2]);
+                
+                scene.add(sphere);
+                spheres.push(sphere);
+            });
+            
+
+            return (spheres);
+        }
+        function addConeInstance(pos, radiusMax, radiusMin){
+            const posMatrixA = math.matrix([ [pos[0], 0, 0],[0, pos[1], 0], [0, 0, pos[2]] ]);
+            const posMatrixB = math.matrix([ [pos[2], 0, 0],[0, pos[1], 0], [0, 0, pos[0]] ]);
+            const spheres= [];
+            let sPos = [];
+            matrices.forEach(matrix =>{
+                const a = math.matrix(matrix)
+                sPos.push( math.multiply(a,posMatrixA));
+                sPos.push(math.multiply(a,posMatrixB));
+            });
+            
+            sPos.forEach( function (matrix, i) {
+                const geometry = new THREE.ConeGeometry( Math.random()*(radiusMax - radiusMin) + radiusMin, 30, 10,);
                 const rand = Math.random()*3;
                 /*let mat;
                 if (rand < 3) mat = mats[0];
@@ -225,7 +264,10 @@ function main() {
 
                     // Add the instance to the scene
                     instance.phase = (Math.random() * 2 * Math.PI);
-                    if(name == 'tree' || name == 'pineTree') instance.castShadow = true;
+                    instance.traverse(function(child){child.castShadow = true; child.receiveShadow = true});
+                    instance.castShadow = true;
+                    instance.recieveShadow = true;
+                    //if(name == 'tree' || name == 'pineTree') instance.castShadow = true;
                     scene.add(instance);
                     objs.push(instance);
                 }
@@ -266,21 +308,6 @@ function main() {
         });
 
 	}
-    /*
-    {//LOADING & ADDING 3D .OBJ: PINE TREE
-        const mtlLoader = new MTLLoader(); //.mtl, contains material data
-        mtlLoader.load('./resources/pineTree.mtl', (mtl) => { //loads the .MTL file, when finished loading:
-            mtl.preload();
-            const objLoader = new OBJLoader();
-            objLoader.setMaterials(mtl); //adds loaded materials onto the OBJ loader itself
-            objLoader.load('./resources/pineTree.obj', (root) => { //loads obj file, on load:
-                scene.add(root);
-            });
-        });
-
-    }*/
-
-
 	function resizeRendererToDisplaySize( renderer ) {
 
 		const canvas = renderer.domElement;
@@ -296,7 +323,7 @@ function main() {
 		return needResize;
 
 	}
-
+    console.log(scene)
 	function render(time) {
 
 		if ( resizeRendererToDisplaySize( renderer ) ) {
